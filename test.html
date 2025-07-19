@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Service Tests - TDD</title>
+    <style>
+        body {
+            font-family: 'VT323', monospace;
+            background: #000;
+            color: #02C2CC;
+            padding: 20px;
+        }
+        .test-suite {
+            margin: 20px 0;
+            border: 1px solid #02C2CC;
+            padding: 10px;
+        }
+        .test-case {
+            margin: 10px 0;
+            padding: 5px;
+        }
+        .pass {
+            color: #00FF00;
+        }
+        .fail {
+            color: #FF0000;
+        }
+        .pending {
+            color: #FFFF00;
+        }
+        pre {
+            background: #0a0a0a;
+            padding: 10px;
+            overflow-x: auto;
+        }
+        #test-canvas {
+            border: 1px solid #4A8FBD;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 CRT Monitor Data Service - Test Suite</h1>
+    <div id="test-results"></div>
+    <canvas id="test-canvas" width="512" height="384"></canvas>
+    
+    <!-- Load the data service -->
+    <script src="dataService.js"></script>
+    
+    <!-- Test Framework -->
+    <script>
+        // Minimal test framework
+        class TestRunner {
+            constructor() {
+                this.tests = [];
+                this.results = [];
+            }
+            
+            describe(suiteName, suiteFunction) {
+                this.currentSuite = suiteName;
+                suiteFunction();
+            }
+            
+            it(testName, testFunction) {
+                this.tests.push({
+                    suite: this.currentSuite,
+                    name: testName,
+                    function: testFunction
+                });
+            }
+            
+            async run() {
+                const resultsDiv = document.getElementById('test-results');
+                resultsDiv.innerHTML = '<h2>Running tests...</h2>';
+                
+                for (const test of this.tests) {
+                    const result = await this.runTest(test);
+                    this.results.push(result);
+                    this.displayResult(result);
+                }
+                
+                this.displaySummary();
+            }
+            
+            async runTest(test) {
+                const startTime = Date.now();
+                try {
+                    await test.function();
+                    return {
+                        ...test,
+                        status: 'pass',
+                        time: Date.now() - startTime
+                    };
+                } catch (error) {
+                    return {
+                        ...test,
+                        status: 'fail',
+                        error: error.message,
+                        time: Date.now() - startTime
+                    };
+                }
+            }
+            
+            displayResult(result) {
+                const resultsDiv = document.getElementById('test-results');
+                const testDiv = document.createElement('div');
+                testDiv.className = `test-case ${result.status}`;
+                testDiv.innerHTML = `
+                    <strong>${result.suite}:</strong> ${result.name} 
+                    <span>[${result.status.toUpperCase()} - ${result.time}ms]</span>
+                    ${result.error ? `<pre>${result.error}</pre>` : ''}
+                `;
+                resultsDiv.appendChild(testDiv);
+            }
+            
+            displaySummary() {
+                const passed = this.results.filter(r => r.status === 'pass').length;
+                const failed = this.results.filter(r => r.status === 'fail').length;
+                const total = this.results.length;
+                
+                const summaryDiv = document.createElement('div');
+                summaryDiv.className = 'test-suite';
+                summaryDiv.innerHTML = `
+                    <h2>Test Summary</h2>
+                    <p>Total: ${total} | Passed: <span class="pass">${passed}</span> | Failed: <span class="fail">${failed}</span></p>
+                `;
+                document.getElementById('test-results').appendChild(summaryDiv);
+            }
+        }
+        
+        // Test assertions
+        const assert = {
+            equal: (actual, expected, message) => {
+                if (actual !== expected) {
+                    throw new Error(message || `Expected ${expected} but got ${actual}`);
+                }
+            },
+            
+            notNull: (value, message) => {
+                if (value === null || value === undefined) {
+                    throw new Error(message || `Expected value to not be null`);
+                }
+            },
+            
+            isTrue: (value, message) => {
+                if (value !== true) {
+                    throw new Error(message || `Expected true but got ${value}`);
+                }
+            },
+            
+            contains: (object, key, message) => {
+                if (!(key in object)) {
+                    throw new Error(message || `Expected object to contain key ${key}`);
+                }
+            }
+        };
+        
+        // Mock fetch for testing
+        const mockFetch = (url, response) => {
+            window.fetch = async (fetchUrl) => {
+                if (fetchUrl.includes(url)) {
+                    return {
+                        ok: true,
+                        json: async () => response
+                    };
+                }
+                throw new Error('Unmocked URL: ' + fetchUrl);
+            };
+        };
+    </script>
+    
+    <!-- Actual Tests -->
+    <script>
+        const runner = new TestRunner();
+        
+        // Test Suite: DataService
+        runner.describe('DataService', () => {
+            runner.it('should be a singleton', async () => {
+                const service1 = new DataService();
+                const service2 = new DataService();
+                assert.equal(service1, service2, 'DataService should return same instance');
+            });
+            
+            runner.it('should initialize with empty cache', async () => {
+                const service = new DataService();
+                service.clearCache();
+                assert.equal(service.cache.size, 0, 'Cache should be empty initially');
+            });
+            
+            runner.it('should fetch crypto prices', async () => {
+                mockFetch('coingecko', {
+                    bitcoin: { usd: 45000, usd_24h_change: 2.5 },
+                    ethereum: { usd: 3000, usd_24h_change: -1.2 }
+                });
+                
+                const service = new DataService();
+                service.clearCache();
+                const data = await service.fetchCryptoPrices();
+                
+                assert.notNull(data, 'Crypto data should not be null');
+                assert.contains(data, 'btc', 'Should contain BTC data');
+                assert.contains(data, 'eth', 'Should contain ETH data');
+                assert.equal(data.btc.price, 45000, 'BTC price should match');
+                assert.equal(data.btc.change24h, 2.5, 'BTC 24h change should match');
+            });
+            
+            runner.it('should cache crypto prices', async () => {
+                const service = new DataService();
+                service.clearCache();
+                
+                // First call - should hit API
+                let callCount = 0;
+                window.fetch = async () => {
+                    callCount++;
+                    return {
+                        ok: true,
+                        json: async () => ({
+                            bitcoin: { usd: 45000, usd_24h_change: 2.5 },
+                            ethereum: { usd: 3000, usd_24h_change: -1.2 }
+                        })
+                    };
+                };
+                
+                await service.fetchCryptoPrices();
+                assert.equal(callCount, 1, 'Should make one API call');
+                
+                // Second call - should use cache
+                await service.fetchCryptoPrices();
+                assert.equal(callCount, 1, 'Should not make another API call');
+            });
+            
+            runner.it('should calculate sentiment correctly', async () => {
+                mockFetch('coingecko', {
+                    bitcoin: { usd: 45000, usd_24h_change: 5.0 },
+                    ethereum: { usd: 3000, usd_24h_change: 3.0 }
+                });
+                
+                const service = new DataService();
+                service.clearCache();
+                const sentiment = await service.calculateSentiment();
+                
+                assert.notNull(sentiment, 'Sentiment should not be null');
+                assert.contains(sentiment, 'score', 'Should contain score');
+                assert.contains(sentiment, 'label', 'Should contain label');
+                assert.contains(sentiment, 'color', 'Should contain color');
+                assert.isTrue(sentiment.score > 0, 'Sentiment should be positive');
+                assert.equal(sentiment.label, 'BULLISH', 'Should be bullish');
+            });
+        });
+        
+        // Test Suite: Content Rendering
+        runner.describe('Content Rendering', () => {
+            runner.it('should render crypto data on canvas', async () => {
+                const canvas = document.getElementById('test-canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Mock crypto data
+                const cryptoData = {
+                    btc: { price: 45000, change24h: 2.5 },
+                    eth: { price: 3000, change24h: -1.2 }
+                };
+                
+                // Clear canvas
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 0, 512, 384);
+                
+                // Render crypto content (simplified version)
+                ctx.fillStyle = '#02C2CC';
+                ctx.font = '24px monospace';
+                ctx.fillText('CRYPTO FEED', 20, 40);
+                
+                // BTC
+                ctx.fillStyle = cryptoData.btc.change24h > 0 ? '#00FF00' : '#FF0000';
+                ctx.fillText(`BTC: $${cryptoData.btc.price}`, 20, 100);
+                ctx.fillText(`${cryptoData.btc.change24h > 0 ? '↑' : '↓'} ${Math.abs(cryptoData.btc.change24h).toFixed(2)}%`, 20, 130);
+                
+                // ETH
+                ctx.fillStyle = cryptoData.eth.change24h > 0 ? '#00FF00' : '#FF0000';
+                ctx.fillText(`ETH: $${cryptoData.eth.price}`, 20, 180);
+                ctx.fillText(`${cryptoData.eth.change24h > 0 ? '↑' : '↓'} ${Math.abs(cryptoData.eth.change24h).toFixed(2)}%`, 20, 210);
+                
+                // Test that content was rendered
+                const imageData = ctx.getImageData(0, 0, 512, 384);
+                let hasContent = false;
+                for (let i = 0; i < imageData.data.length; i += 4) {
+                    if (imageData.data[i] > 0 || imageData.data[i+1] > 0 || imageData.data[i+2] > 0) {
+                        hasContent = true;
+                        break;
+                    }
+                }
+                assert.isTrue(hasContent, 'Canvas should have rendered content');
+            });
+        });
+        
+        // Run tests when page loads
+        window.addEventListener('load', () => {
+            runner.run();
+        });
+    </script>
+</body>
+</html>

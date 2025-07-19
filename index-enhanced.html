@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRT Monitor Array - Live Data Feed</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            overflow: hidden;
+            background: #000;
+            font-family: 'VT323', monospace;
+            cursor: crosshair;
+        }
+        
+        #canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .overlay {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: #02C2CC;
+            font-size: 24px;
+            letter-spacing: 4px;
+            text-shadow: 0 0 20px #02C2CC;
+            z-index: 100;
+            pointer-events: none;
+            animation: pulse 2s infinite;
+        }
+        
+        .time {
+            animation-delay: 0.5s;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 1; }
+        }
+        
+        .instructions {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            color: #4A8FBD;
+            font-size: 16px;
+            opacity: 0.6;
+            z-index: 100;
+            pointer-events: none;
+        }
+        
+        .status-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #02C2CC;
+            padding: 10px;
+            color: #02C2CC;
+            font-size: 14px;
+            z-index: 200;
+            display: none;
+        }
+        
+        .status-panel.active {
+            display: block;
+        }
+        
+        .status-item {
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+        }
+        
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        
+        .status-indicator.active {
+            background: #00FF00;
+            box-shadow: 0 0 5px #00FF00;
+        }
+        
+        .status-indicator.error {
+            background: #FF0000;
+            box-shadow: 0 0 5px #FF0000;
+        }
+        
+        .mode-buttons {
+            position: fixed;
+            top: 100px;
+            right: 20px;
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .mode-button {
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #4A8FBD;
+            color: #4A8FBD;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-family: 'VT323', monospace;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+        
+        .mode-button:hover {
+            background: #4A8FBD;
+            color: #000;
+        }
+        
+        .mode-button.active {
+            background: #02C2CC;
+            color: #000;
+            border-color: #02C2CC;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <div>PRESENT DAY</div>
+        <div class="time">PRESENT TIME</div>
+    </div>
+    <div class="instructions">
+        [DRAG] ROTATE VIEW | [CLICK] CONNECT | [1-9] CONTENT MODE | [S] STATUS
+    </div>
+    
+    <div class="status-panel" id="statusPanel">
+        <h3>DATA FEED STATUS</h3>
+        <div class="status-item">
+            <span>CRYPTO</span>
+            <span id="cryptoStatus">--<span class="status-indicator" id="cryptoIndicator"></span></span>
+        </div>
+        <div class="status-item">
+            <span>WEATHER</span>
+            <span id="weatherStatus">--<span class="status-indicator" id="weatherIndicator"></span></span>
+        </div>
+        <div class="status-item">
+            <span>NEWS</span>
+            <span id="newsStatus">--<span class="status-indicator" id="newsIndicator"></span></span>
+        </div>
+        <div class="status-item">
+            <span>IMAGES</span>
+            <span id="imageStatus">--<span class="status-indicator" id="imageIndicator"></span></span>
+        </div>
+        <div class="status-item">
+            <span>SENTIMENT</span>
+            <span id="sentimentStatus">--<span class="status-indicator" id="sentimentIndicator"></span></span>
+        </div>
+    </div>
+    
+    <div class="mode-buttons">
+        <button class="mode-button" data-mode="0">STATIC</button>
+        <button class="mode-button" data-mode="1">EYE</button>
+        <button class="mode-button" data-mode="2">PROTOCOL</button>
+        <button class="mode-button" data-mode="3">P7 LOGO</button>
+        <button class="mode-button" data-mode="4">BINARY</button>
+        <button class="mode-button" data-mode="5">CRYPTO</button>
+        <button class="mode-button" data-mode="6">WEATHER</button>
+        <button class="mode-button" data-mode="7">NEWS</button>
+        <button class="mode-button" data-mode="8">IMAGES</button>
+        <button class="mode-button" data-mode="9">SENTIMENT</button>
+    </div>
+    
+    <!-- Load configuration and data service -->
+    <script src="config.js"></script>
+    <script src="dataService.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x000000, 0.01);
+        
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 200);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+        renderer.domElement.id = 'canvas';
+        
+        // Fixed camera distance
+        const cameraDistance = 50;
+        camera.position.set(0, 0, cameraDistance);
+        
+        // Add minimal ambient light so we can see the monitor casings
+        const ambientLight = new THREE.AmbientLight(0x0a0a0a, 0.1);
+        scene.add(ambientLight);
+        
+        // Mouse controls
+        let mouseX = 0, mouseY = 0;
+        let targetRotationX = 0, targetRotationY = 0;
+        let isMouseDown = false;
+        
+        document.addEventListener('mousemove', (e) => {
+            if (isMouseDown) {
+                targetRotationY = ((e.clientX / window.innerWidth) - 0.5) * Math.PI;
+                targetRotationX = ((e.clientY / window.innerHeight) - 0.5) * Math.PI * 0.5;
+            }
+        });
+        
+        document.addEventListener('mousedown', () => isMouseDown = true);
+        document.addEventListener('mouseup', () => isMouseDown = false);
+        
+        // Global mode selection
+        let selectedMode = null;
+        
+        // CRT Monitor class - Enhanced with real-time data
+        class CRTMonitor {
+            constructor(size = 1) {
+                this.group = new THREE.Group();
+                this.size = size;
+                this.isOn = Math.random() > 0.2;
+                this.flickerSpeed = Math.random() * 0.1 + 0.01;
+                this.contentType = getRandomContentType();
+                
+                // Data cache for this monitor
+                this.dataCache = {};
+                this.lastDataUpdate = 0;
+                
+                // Monitor casing
+                const casingGeometry = new THREE.BoxGeometry(size * 4, size * 3, size * 2);
+                const casingMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x1a1a1a,
+                    emissive: 0x0a0a0a,
+                    shininess: 20
+                });
+                this.casing = new THREE.Mesh(casingGeometry, casingMaterial);
+                
+                // Screen content canvas
+                this.canvas = document.createElement('canvas');
+                this.canvas.width = 512;
+                this.canvas.height = 384;
+                this.ctx = this.canvas.getContext('2d');
+                this.texture = new THREE.CanvasTexture(this.canvas);
+                
+                // Content plane
+                const contentGeometry = new THREE.PlaneGeometry(size * 3.5, size * 2.6);
+                const contentMaterial = new THREE.MeshBasicMaterial({
+                    map: this.texture,
+                    transparent: true,
+                    opacity: this.isOn ? 0.9 : 0,
+                    emissive: 0x4A8FBD,
+                    emissiveIntensity: 0.3
+                });
+                this.content = new THREE.Mesh(contentGeometry, contentMaterial);
+                this.content.position.z = size * 1.01;
+                
+                // Point light for glow
+                this.light = new THREE.PointLight(0x4A8FBD, this.isOn ? size * 0.5 : 0, size * 10);
+                this.light.position.z = size * 2;
+                
+                this.group.add(this.casing, this.content, this.light);
+                
+                // Random position and rotation
+                this.group.position.set(
+                    (Math.random() - 0.5) * 80,
+                    (Math.random() - 0.5) * 60,
+                    (Math.random() - 0.5) * 80
+                );
+                this.group.rotation.set(
+                    (Math.random() - 0.5) * 0.5,
+                    (Math.random() - 0.5) * Math.PI,
+                    (Math.random() - 0.5) * 0.3
+                );
+                
+                // Animation properties
+                this.floatSpeed = Math.random() * 0.001 + 0.0005;
+                this.floatOffset = Math.random() * Math.PI * 2;
+                this.rotationSpeed = (Math.random() - 0.5) * 0.001;
+                
+                // News scroll position
+                this.newsScrollY = 0;
+                this.newsScrollSpeed = 1;
+                
+                // Image loading
+                this.currentImage = null;
+                this.imageLoading = false;
+                
+                this.updateContent();
+            }
+            
+            async updateContent() {
+                if (!this.isOn) {
+                    this.ctx.fillStyle = '#000';
+                    this.ctx.fillRect(0, 0, 512, 384);
+                    this.texture.needsUpdate = true;
+                    return;
+                }
+                
+                // Clear with scanlines
+                this.ctx.fillStyle = '#0a0a0a';
+                this.ctx.fillRect(0, 0, 512, 384);
+                
+                // Scanline effect
+                for (let y = 0; y < 384; y += 2) {
+                    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+                    this.ctx.fillRect(0, y, 512, 1);
+                }
+                
+                // Override with selected mode if set
+                const displayType = selectedMode !== null ? selectedMode : this.contentType;
+                
+                switch(displayType) {
+                    case CONTENT_TYPES.STATIC:
+                        this.renderStatic();
+                        break;
+                        
+                    case CONTENT_TYPES.EYE:
+                        this.renderEye();
+                        break;
+                        
+                    case CONTENT_TYPES.PROTOCOL:
+                        this.renderProtocol();
+                        break;
+                        
+                    case CONTENT_TYPES.P7_LOGO:
+                        this.renderP7Logo();
+                        break;
+                        
+                    case CONTENT_TYPES.BINARY:
+                        this.renderBinary();
+                        break;
+                        
+                    case CONTENT_TYPES.CRYPTO:
+                        await this.renderCrypto();
+                        break;
+                        
+                    case CONTENT_TYPES.WEATHER:
+                        await this.renderWeather();
+                        break;
+                        
+                    case CONTENT_TYPES.NEWS:
+                        await this.renderNews();
+                        break;
+                        
+                    case CONTENT_TYPES.IMAGES:
+                        await this.renderImage();
+                        break;
+                        
+                    case CONTENT_TYPES.SENTIMENT:
+                        await this.renderSentiment();
+                        break;
+                }
+                
+                // CRT curve distortion overlay
+                const gradient = this.ctx.createRadialGradient(256, 192, 0, 256, 192, 300);
+                gradient.addColorStop(0, 'rgba(0,0,0,0)');
+                gradient.addColorStop(1, 'rgba(0,0,0,0.3)');
+                this.ctx.fillStyle = gradient;
+                this.ctx.fillRect(0, 0, 512, 384);
+                
+                this.texture.needsUpdate = true;
+            }
+            
+            renderStatic() {
+                const imageData = this.ctx.createImageData(512, 384);
+                for (let i = 0; i < imageData.data.length; i += 4) {
+                    const brightness = Math.random() * 255;
+                    imageData.data[i] = brightness * 0.3;
+                    imageData.data[i + 1] = brightness * 0.5;
+                    imageData.data[i + 2] = brightness;
+                    imageData.data[i + 3] = 255;
+                }
+                this.ctx.putImageData(imageData, 0, 0);
+            }
+            
+            renderEye() {
+                this.ctx.fillStyle = '#EBE6E3';
+                this.ctx.beginPath();
+                this.ctx.ellipse(256, 192, 150, 80, 0, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                this.ctx.fillStyle = '#4A8FBD';
+                this.ctx.beginPath();
+                this.ctx.arc(256 + Math.sin(Date.now() * 0.001) * 20, 192, 60, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                this.ctx.fillStyle = '#0C0002';
+                this.ctx.beginPath();
+                this.ctx.arc(256 + Math.sin(Date.now() * 0.001) * 20, 192, 25, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+            
+            renderProtocol() {
+                this.ctx.fillStyle = '#02C2CC';
+                this.ctx.font = '20px VT323';
+                const protocols = [
+                    'PROTOCOL 7 ACTIVE',
+                    'LAYER:07 INITIALIZED',
+                    'WIRED CONNECTION ESTABLISHED',
+                    'CLOSE THE WORLD',
+                    'OPEN THE NEXT',
+                    'SYSTEM LINK START',
+                    'COPLAND OS ENTERPRISE',
+                    'PSYCHE CHIP DETECTED'
+                ];
+                let y = 30;
+                for (let i = 0; i < 12; i++) {
+                    this.ctx.fillText(protocols[Math.floor(Math.random() * protocols.length)], 20, y);
+                    y += 30;
+                }
+            }
+            
+            renderP7Logo() {
+                this.ctx.fillStyle = '#8941AD';
+                this.ctx.fillRect(100, 50, 312, 284);
+                this.ctx.fillStyle = '#000';
+                this.ctx.font = '150px VT323';
+                this.ctx.fillText('p7', 180, 220);
+                
+                // Glitch effect
+                for (let i = 0; i < 5; i++) {
+                    const slice = this.ctx.getImageData(
+                        0, 
+                        Math.random() * 384, 
+                        512, 
+                        Math.random() * 20 + 5
+                    );
+                    this.ctx.putImageData(slice, Math.random() * 20 - 10, Math.random() * 384);
+                }
+            }
+            
+            renderBinary() {
+                this.ctx.fillStyle = '#02C2CC';
+                this.ctx.font = '12px VT323';
+                for (let x = 0; x < 512; x += 15) {
+                    for (let y = 0; y < 384; y += 15) {
+                        if (Math.random() > 0.7) {
+                            this.ctx.fillText(Math.random() > 0.5 ? '1' : '0', x, y);
+                        }
+                    }
+                }
+            }
+            
+            async renderCrypto() {
+                try {
+                    const data = await dataService.fetchCryptoPrices();
+                    updateStatus('crypto', 'LIVE');
+                    
+                    this.ctx.fillStyle = '#02C2CC';
+                    this.ctx.font = '30px VT323';
+                    this.ctx.fillText('CRYPTO FEED', 20, 50);
+                    
+                    if (data) {
+                        // BTC
+                        this.ctx.font = '24px VT323';
+                        this.ctx.fillStyle = '#4A8FBD';
+                        this.ctx.fillText('BTC/USD', 20, 120);
+                        
+                        this.ctx.font = '48px VT323';
+                        this.ctx.fillStyle = data.btc.change24h > 0 ? '#00FF00' : '#FF0000';
+                        this.ctx.fillText(`$${data.btc.price.toLocaleString()}`, 20, 170);
+                        
+                        this.ctx.font = '24px VT323';
+                        const btcArrow = data.btc.change24h > 0 ? '↑' : '↓';
+                        this.ctx.fillText(`${btcArrow} ${Math.abs(data.btc.change24h).toFixed(2)}%`, 300, 170);
+                        
+                        // ETH
+                        this.ctx.font = '24px VT323';
+                        this.ctx.fillStyle = '#4A8FBD';
+                        this.ctx.fillText('ETH/USD', 20, 250);
+                        
+                        this.ctx.font = '48px VT323';
+                        this.ctx.fillStyle = data.eth.change24h > 0 ? '#00FF00' : '#FF0000';
+                        this.ctx.fillText(`$${data.eth.price.toLocaleString()}`, 20, 300);
+                        
+                        this.ctx.font = '24px VT323';
+                        const ethArrow = data.eth.change24h > 0 ? '↑' : '↓';
+                        this.ctx.fillText(`${ethArrow} ${Math.abs(data.eth.change24h).toFixed(2)}%`, 300, 300);
+                    }
+                } catch (error) {
+                    updateStatus('crypto', 'ERROR');
+                    this.renderError('CRYPTO FEED OFFLINE');
+                }
+            }
+            
+            async renderWeather() {
+                try {
+                    const data = await dataService.fetchWeather();
+                    updateStatus('weather', 'LIVE');
+                    
+                    this.ctx.fillStyle = '#02C2CC';
+                    this.ctx.font = '30px VT323';
+                    this.ctx.fillText('WEATHER DATA', 20, 50);
+                    
+                    if (data) {
+                        // Temperature
+                        this.ctx.font = '72px VT323';
+                        this.ctx.fillStyle = '#4A8FBD';
+                        this.ctx.fillText(`${data.temperature}°C`, 20, 150);
+                        
+                        // Conditions
+                        this.ctx.font = '36px VT323';
+                        this.ctx.fillStyle = '#02C2CC';
+                        this.ctx.fillText(data.conditions, 20, 220);
+                        
+                        // Additional info
+                        this.ctx.font = '24px VT323';
+                        this.ctx.fillText(`Humidity: ${data.humidity}%`, 20, 280);
+                        this.ctx.fillText(`Wind: ${data.windspeed} km/h`, 20, 320);
+                    }
+                } catch (error) {
+                    updateStatus('weather', 'ERROR');
+                    this.renderError('WEATHER FEED OFFLINE');
+                }
+            }
+            
+            async renderNews() {
+                try {
+                    const headlines = await dataService.fetchNews();
+                    updateStatus('news', 'LIVE');
+                    
+                    this.ctx.fillStyle = '#02C2CC';
+                    this.ctx.font = '30px VT323';
+                    this.ctx.fillText('NEWS FEED', 20, 50);
+                    
+                    if (headlines && headlines.length > 0) {
+                        this.ctx.font = '20px VT323';
+                        this.ctx.fillStyle = '#4A8FBD';
+                        
+                        // Scrolling effect
+                        this.newsScrollY = (this.newsScrollY + this.newsScrollSpeed) % (headlines.length * 40 + 384);
+                        
+                        headlines.forEach((headline, index) => {
+                            const y = 100 + index * 40 - this.newsScrollY;
+                            if (y > 70 && y < 384) {
+                                this.ctx.fillText('• ' + headline, 20, y);
+                            }
+                        });
+                    }
+                } catch (error) {
+                    updateStatus('news', 'ERROR');
+                    this.renderError('NEWS FEED OFFLINE');
+                }
+            }
+            
+            async renderImage() {
+                try {
+                    if (!this.currentImage || Math.random() < 0.01) { // Refresh occasionally
+                        const imageUrl = await dataService.fetchImageUrl();
+                        updateStatus('images', 'LOADING');
+                        
+                        if (!this.imageLoading) {
+                            this.imageLoading = true;
+                            const img = new Image();
+                            img.crossOrigin = 'anonymous';
+                            
+                            img.onload = () => {
+                                this.currentImage = img;
+                                this.imageLoading = false;
+                                updateStatus('images', 'LIVE');
+                            };
+                            
+                            img.onerror = () => {
+                                this.imageLoading = false;
+                                updateStatus('images', 'ERROR');
+                            };
+                            
+                            img.src = imageUrl;
+                        }
+                    }
+                    
+                    if (this.currentImage) {
+                        // Draw image with aspect ratio preservation
+                        const scale = Math.min(512 / this.currentImage.width, 384 / this.currentImage.height);
+                        const width = this.currentImage.width * scale;
+                        const height = this.currentImage.height * scale;
+                        const x = (512 - width) / 2;
+                        const y = (384 - height) / 2;
+                        
+                        this.ctx.drawImage(this.currentImage, x, y, width, height);
+                        
+                        // Add CRT effect overlay
+                        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                        for (let y = 0; y < 384; y += 4) {
+                            this.ctx.fillRect(0, y, 512, 2);
+                        }
+                    } else {
+                        this.renderError('LOADING IMAGE...');
+                    }
+                } catch (error) {
+                    updateStatus('images', 'ERROR');
+                    this.renderError('IMAGE FEED OFFLINE');
+                }
+            }
+            
+            async renderSentiment() {
+                try {
+                    const sentiment = await dataService.calculateSentiment();
+                    updateStatus('sentiment', 'LIVE');
+                    
+                    this.ctx.fillStyle = '#02C2CC';
+                    this.ctx.font = '30px VT323';
+                    this.ctx.fillText('MARKET SENTIMENT', 20, 50);
+                    
+                    if (sentiment) {
+                        // Draw gauge background
+                        const centerX = 256;
+                        const centerY = 220;
+                        const radius = 100;
+                        
+                        // Background arc
+                        this.ctx.strokeStyle = '#1a1a1a';
+                        this.ctx.lineWidth = 20;
+                        this.ctx.beginPath();
+                        this.ctx.arc(centerX, centerY, radius, Math.PI * 0.8, Math.PI * 2.2);
+                        this.ctx.stroke();
+                        
+                        // Sentiment arc
+                        const angle = Math.PI * 0.8 + (sentiment.score + 100) / 200 * Math.PI * 1.4;
+                        this.ctx.strokeStyle = sentiment.color;
+                        this.ctx.lineWidth = 20;
+                        this.ctx.beginPath();
+                        this.ctx.arc(centerX, centerY, radius, Math.PI * 0.8, angle);
+                        this.ctx.stroke();
+                        
+                        // Needle
+                        this.ctx.strokeStyle = '#fff';
+                        this.ctx.lineWidth = 3;
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(centerX, centerY);
+                        this.ctx.lineTo(
+                            centerX + Math.cos(angle) * (radius - 10),
+                            centerY + Math.sin(angle) * (radius - 10)
+                        );
+                        this.ctx.stroke();
+                        
+                        // Label
+                        this.ctx.font = '36px VT323';
+                        this.ctx.fillStyle = sentiment.color;
+                        this.ctx.textAlign = 'center';
+                        this.ctx.fillText(sentiment.label, centerX, centerY + 60);
+                        
+                        // Score
+                        this.ctx.font = '24px VT323';
+                        this.ctx.fillText(`${sentiment.score.toFixed(1)}`, centerX, centerY);
+                        this.ctx.textAlign = 'left';
+                    }
+                } catch (error) {
+                    updateStatus('sentiment', 'ERROR');
+                    this.renderError('SENTIMENT FEED OFFLINE');
+                }
+            }
+            
+            renderError(message) {
+                this.ctx.fillStyle = '#FF0000';
+                this.ctx.font = '24px VT323';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(message, 256, 192);
+                this.ctx.textAlign = 'left';
+            }
+            
+            update(time) {
+                // Floating animation
+                this.group.position.y += Math.sin(time * this.floatSpeed + this.floatOffset) * 0.01;
+                this.group.rotation.y += this.rotationSpeed;
+                
+                // Flicker effect
+                if (Math.random() < this.flickerSpeed) {
+                    this.togglePower();
+                }
+                
+                // Update content periodically
+                if (this.isOn && Math.random() < 0.02) {
+                    this.updateContent();
+                }
+            }
+            
+            togglePower() {
+                this.isOn = !this.isOn;
+                this.content.material.opacity = this.isOn ? 0.9 : 0;
+                this.light.intensity = this.isOn ? this.size * 0.5 : 0;
+                
+                if (this.isOn) {
+                    this.contentType = selectedMode !== null ? selectedMode : getRandomContentType();
+                    this.updateContent();
+                }
+            }
+        }
+        
+        // Create monitor array
+        const monitors = [];
+        for (let i = 0; i < 69; i++) {
+            const monitor = new CRTMonitor(Math.random() * 0.5 + 0.5);
+            monitors.push(monitor);
+            scene.add(monitor.group);
+        }
+        
+        // Simple network visualization (keeping existing cable system)
+        // Add some floating cables
+        const cableGeometry = new THREE.TubeGeometry(
+            new THREE.CatmullRomCurve3([
+                new THREE.Vector3(-40, 20, 0),
+                new THREE.Vector3(-20, 10, 10),
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(20, -10, -10),
+                new THREE.Vector3(40, -20, 0)
+            ]),
+            100, 0.1, 8, false
+        );
+        const cableMaterial = new THREE.MeshBasicMaterial({ color: 0x1a1a1a });
+        
+        for (let i = 0; i < 5; i++) {
+            const cable = new THREE.Mesh(cableGeometry, cableMaterial);
+            cable.position.set(
+                (Math.random() - 0.5) * 60,
+                (Math.random() - 0.5) * 40,
+                (Math.random() - 0.5) * 40
+            );
+            cable.rotation.set(
+                Math.random() * Math.PI,
+                Math.random() * Math.PI,
+                Math.random() * Math.PI
+            );
+            scene.add(cable);
+        }
+        
+        // Click to connect
+        document.addEventListener('click', (e) => {
+            // Ignore clicks on UI elements
+            if (e.target.classList.contains('mode-button')) return;
+            
+            // Flash all monitors
+            monitors.forEach((monitor, i) => {
+                setTimeout(() => {
+                    monitor.togglePower();
+                    monitor.contentType = CONTENT_TYPES.PROTOCOL;
+                    monitor.updateContent();
+                }, i * 50);
+            });
+            
+            // Restore after effect
+            setTimeout(() => {
+                monitors.forEach(monitor => {
+                    if (Math.random() > 0.3) {
+                        monitor.togglePower();
+                        monitor.contentType = getRandomContentType();
+                        monitor.updateContent();
+                    }
+                });
+            }, 2000);
+        });
+        
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            if (e.key >= '0' && e.key <= '9') {
+                const mode = parseInt(e.key);
+                selectedMode = mode;
+                
+                // Update all monitors
+                monitors.forEach(monitor => {
+                    if (monitor.isOn) {
+                        monitor.contentType = mode;
+                        monitor.updateContent();
+                    }
+                });
+                
+                // Update button states
+                document.querySelectorAll('.mode-button').forEach(btn => {
+                    btn.classList.toggle('active', parseInt(btn.dataset.mode) === mode);
+                });
+            } else if (e.key.toLowerCase() === 's') {
+                // Toggle status panel
+                document.getElementById('statusPanel').classList.toggle('active');
+            } else if (e.key.toLowerCase() === 'r') {
+                // Refresh all data
+                dataService.clearCache();
+                monitors.forEach(monitor => {
+                    if (monitor.isOn) monitor.updateContent();
+                });
+            }
+        });
+        
+        // Mode button clicks
+        document.querySelectorAll('.mode-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const mode = parseInt(button.dataset.mode);
+                selectedMode = mode;
+                
+                // Update all monitors
+                monitors.forEach(monitor => {
+                    if (monitor.isOn) {
+                        monitor.contentType = mode;
+                        monitor.updateContent();
+                    }
+                });
+                
+                // Update button states
+                document.querySelectorAll('.mode-button').forEach(btn => {
+                    btn.classList.toggle('active', btn === button);
+                });
+            });
+        });
+        
+        // Status update helper
+        function updateStatus(service, status) {
+            const statusEl = document.getElementById(service + 'Status');
+            const indicatorEl = document.getElementById(service + 'Indicator');
+            
+            if (statusEl && indicatorEl) {
+                statusEl.textContent = status;
+                indicatorEl.className = 'status-indicator ' + 
+                    (status === 'LIVE' || status === 'LOADING' ? 'active' : 'error');
+            }
+        }
+        
+        // Animation loop
+        const clock = new THREE.Clock();
+        let cameraRotationX = 0, cameraRotationY = 0;
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const time = clock.getElapsedTime();
+            
+            // Smooth camera rotation
+            cameraRotationX += (targetRotationX - cameraRotationX) * 0.05;
+            cameraRotationY += (targetRotationY - cameraRotationY) * 0.05;
+            
+            // Keep camera at fixed distance while orbiting
+            camera.position.x = Math.sin(cameraRotationY) * cameraDistance;
+            camera.position.y = Math.sin(cameraRotationX) * 10;
+            camera.position.z = Math.cos(cameraRotationY) * cameraDistance;
+            camera.lookAt(0, 0, 0);
+            
+            // Update monitors
+            monitors.forEach(monitor => monitor.update(time));
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Handle resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Start animation
+        animate();
+        
+        // Initial data fetch
+        setTimeout(() => {
+            monitors.forEach(monitor => {
+                if (monitor.isOn) monitor.updateContent();
+            });
+        }, 1000);
+    </script>
+</body>
+</html>
