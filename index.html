@@ -125,18 +125,6 @@
                 });
                 this.casing = new THREE.Mesh(casingGeometry, casingMaterial);
                 
-                // Screen (curved)
-                const screenGeometry = new THREE.SphereGeometry(size * 3, 16, 12, 0, Math.PI, 0, Math.PI * 0.6);
-                const screenMaterial = new THREE.MeshBasicMaterial({
-                    color: 0x000000,
-                    emissive: 0x4A8FBD,
-                    emissiveIntensity: this.isOn ? 0.5 : 0,
-                    side: THREE.DoubleSide
-                });
-                this.screen = new THREE.Mesh(screenGeometry, screenMaterial);
-                this.screen.rotation.x = -Math.PI / 2;
-                this.screen.position.z = size * 0.8;
-                
                 // Screen content canvas
                 this.canvas = document.createElement('canvas');
                 this.canvas.width = 512;
@@ -160,7 +148,7 @@
                 this.light = new THREE.PointLight(0x4A8FBD, this.isOn ? size * 0.5 : 0, size * 10);
                 this.light.position.z = size * 2;
                 
-                this.group.add(this.casing, this.screen, this.content, this.light);
+                this.group.add(this.casing, this.content, this.light);
                 
                 // Random position and rotation
                 this.group.position.set(
@@ -310,7 +298,7 @@
             
             togglePower() {
                 this.isOn = !this.isOn;
-                this.screen.material.emissiveIntensity = this.isOn ? 0.5 : 0;
+                // Screen material removed - no longer needed
                 this.content.material.opacity = this.isOn ? 0.9 : 0;
                 this.light.intensity = this.isOn ? this.size * 0.5 : 0;
                 
@@ -329,8 +317,124 @@
             scene.add(monitor.group);
         }
         
-        // Add some floating cables
-        const cableGeometry = new THREE.TubeGeometry(
+        // Network/Constellation system
+        class NetworkNode {
+            constructor(monitor, position) {
+                this.monitor = monitor;
+                this.position = position;
+                this.connections = [];
+                this.isHub = false;
+            }
+        }
+        
+        // Create network nodes from monitors
+        const networkNodes = monitors.map(monitor => {
+            return new NetworkNode(monitor, monitor.group.position.clone());
+        });
+        
+        // Create intentional network connections
+        const createNetworkConnections = () => {
+            const cables = [];
+            const cableMaterial = new THREE.MeshBasicMaterial({ color: 0x1a1a1a });
+            
+            // Create hub nodes (central connection points)
+            const hubCount = Math.floor(networkNodes.length * 0.15); // 15% of monitors are hubs
+            const hubs = [];
+            
+            // Select random hubs
+            for (let i = 0; i < hubCount; i++) {
+                const randomIndex = Math.floor(Math.random() * networkNodes.length);
+                if (!hubs.includes(networkNodes[randomIndex])) {
+                    networkNodes[randomIndex].isHub = true;
+                    hubs.push(networkNodes[randomIndex]);
+                }
+            }
+            
+            // Connect hubs to each other (backbone network)
+            for (let i = 0; i < hubs.length; i++) {
+                for (let j = i + 1; j < hubs.length; j++) {
+                    const distance = hubs[i].position.distanceTo(hubs[j].position);
+                    if (distance < 40) { // Only connect nearby hubs
+                        const cable = createCable(hubs[i].position, hubs[j].position, cableMaterial);
+                        cables.push(cable);
+                        scene.add(cable);
+                        
+                        hubs[i].connections.push(hubs[j]);
+                        hubs[j].connections.push(hubs[i]);
+                    }
+                }
+            }
+            
+            // Connect non-hub nodes to nearest hub or connected node
+            const nonHubs = networkNodes.filter(node => !node.isHub);
+            nonHubs.forEach(node => {
+                let bestConnection = null;
+                let bestDistance = Infinity;
+                
+                // Find the closest connected node
+                networkNodes.forEach(otherNode => {
+                    if (otherNode !== node && otherNode.connections.length > 0) {
+                        const distance = node.position.distanceTo(otherNode.position);
+                        if (distance < bestDistance && distance < 25) { // Max connection distance
+                            bestDistance = distance;
+                            bestConnection = otherNode;
+                        }
+                    }
+                });
+                
+                // Connect to the best node
+                if (bestConnection) {
+                    const cable = createCable(node.position, bestConnection.position, cableMaterial);
+                    cables.push(cable);
+                    scene.add(cable);
+                    
+                    node.connections.push(bestConnection);
+                    bestConnection.connections.push(node);
+                }
+            });
+            
+            // Add some random cross-connections for complexity
+            const crossConnections = Math.floor(networkNodes.length * 0.1); // 10% additional random connections
+            for (let i = 0; i < crossConnections; i++) {
+                const node1 = networkNodes[Math.floor(Math.random() * networkNodes.length)];
+                const node2 = networkNodes[Math.floor(Math.random() * networkNodes.length)];
+                
+                if (node1 !== node2 && 
+                    !node1.connections.includes(node2) && 
+                    node1.position.distanceTo(node2.position) < 30) {
+                    
+                    const cable = createCable(node1.position, node2.position, cableMaterial);
+                    cables.push(cable);
+                    scene.add(cable);
+                    
+                    node1.connections.push(node2);
+                    node2.connections.push(node1);
+                }
+            }
+            
+            return cables;
+        };
+        
+        // Helper function to create organic-looking cables
+        const createCable = (startPos, endPos, material) => {
+            // Create organic curve with random control points
+            const midPoint = startPos.clone().add(endPos).multiplyScalar(0.5);
+            midPoint.y += (Math.random() - 0.5) * 15;
+            midPoint.x += (Math.random() - 0.5) * 8;
+            midPoint.z += (Math.random() - 0.5) * 8;
+            
+            const curve = new THREE.CatmullRomCurve3([startPos, midPoint, endPos]);
+            const thickness = Math.random() * 0.15 + 0.05;
+            
+            const cableGeometry = new THREE.TubeGeometry(curve, 50, thickness, 8, false);
+            return new THREE.Mesh(cableGeometry, material);
+        };
+        
+        // Create the network
+        const networkCables = createNetworkConnections();
+        
+        // Add some floating ambient cables for atmosphere (fewer than before)
+        const ambientCableGeometry = new THREE.TubeGeometry(
             new THREE.CatmullRomCurve3([
                 new THREE.Vector3(-40, 20, 0),
                 new THREE.Vector3(-20, 10, 10),
@@ -340,10 +444,10 @@
             ]),
             100, 0.1, 8, false
         );
-        const cableMaterial = new THREE.MeshBasicMaterial({ color: 0x1a1a1a });
+        const ambientCableMaterial = new THREE.MeshBasicMaterial({ color: 0x1a1a1a, opacity: 0.3, transparent: true });
         
-        for (let i = 0; i < 5; i++) {
-            const cable = new THREE.Mesh(cableGeometry, cableMaterial);
+        for (let i = 0; i < 3; i++) { // Reduced from 5 to 3
+            const cable = new THREE.Mesh(ambientCableGeometry, ambientCableMaterial);
             cable.position.set(
                 (Math.random() - 0.5) * 60,
                 (Math.random() - 0.5) * 40,
