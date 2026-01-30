@@ -1,418 +1,484 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CRT Monitor Array - SEL</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            overflow: hidden;
-            background: #000;
-            font-family: 'VT323', monospace;
-            cursor: crosshair;
-        }
-        
-        #canvas {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-        }
-        
-        .overlay {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            color: #02C2CC;
-            font-size: 24px;
-            letter-spacing: 4px;
-            text-shadow: 0 0 20px #02C2CC;
-            z-index: 100;
-            pointer-events: none;
-            animation: pulse 2s infinite;
-        }
-        
-        .time {
-            animation-delay: 0.5s;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 0.8; }
-            50% { opacity: 1; }
-        }
-        
-        .instructions {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            color: #4A8FBD;
-            font-size: 16px;
-            opacity: 0.6;
-            z-index: 100;
-            pointer-events: none;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>P7 - Infrastructure for the next internet</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-body: #0a0a0a;
+      --text-primary: #0a0a0a;
+      --text-secondary: #5a5a5a;
+      --text-muted: #909090;
+      --border-subtle: #d5d5d5;
+      --frame-bg: #f5f5f5;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      background: var(--bg-body);
+      color: var(--text-primary);
+      font-family: "Space Mono", monospace;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .app-frame {
+      position: relative;
+      width: min(94vw, 1400px);
+      height: min(90vh, 860px);
+      border: 8px solid #0a0a0a;
+      border-radius: 24px;
+      padding: 26px 32px;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(0, 0, 0, 0.02), transparent 40%),
+        radial-gradient(circle at 75% 70%, rgba(0, 0, 0, 0.02), transparent 45%),
+        linear-gradient(160deg, rgba(0, 0, 0, 0.01), rgba(255, 255, 255, 0.7)),
+        var(--frame-bg);
+      box-shadow:
+        inset 0 0 0 1px rgba(0, 0, 0, 0.04),
+        inset 0 0 40px rgba(255, 255, 255, 0.6),
+        0 40px 90px rgba(0, 0, 0, 0.15);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .app-frame::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 50% 40%, rgba(0, 0, 0, 0.01), transparent 55%),
+        radial-gradient(circle at 50% 60%, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.9));
+      opacity: 0.8;
+      pointer-events: none;
+    }
+
+    header {
+      position: relative;
+      z-index: 3;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      animation: fadeUp 0.7s ease forwards;
+      opacity: 0;
+      transform: translateY(12px);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+    }
+
+    .logo-img {
+      height: 32px;
+      width: auto;
+    }
+
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      font-size: 0.8rem;
+      letter-spacing: 0.12rem;
+    }
+
+    nav button {
+      color: var(--text-secondary);
+      transition: color 0.2s ease;
+    }
+
+    nav button:hover {
+      color: var(--text-primary);
+    }
+
+    .btn {
+      border: 1px solid transparent;
+      border-radius: 999px;
+      padding: 7px 16px;
+      font-family: inherit;
+      font-size: 0.78rem;
+      cursor: pointer;
+      background: none;
+      color: var(--text-primary);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .btn-primary {
+      background: #0a0a0a;
+      color: #f5f5f5;
+      border-color: #0a0a0a;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+    }
+
+    .btn-primary .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: #f5f5f5;
+      display: inline-block;
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-secondary {
+      border-color: rgba(0, 0, 0, 0.2);
+      color: #282828;
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    .btn-compact {
+      padding: 6px 12px;
+      font-size: 0.72rem;
+      letter-spacing: 0.08rem;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    main {
+      position: relative;
+      z-index: 2;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 0 24px 60px;
+      animation: fadeUp 0.9s ease forwards;
+      animation-delay: 0.15s;
+      opacity: 0;
+      transform: translateY(12px);
+    }
+
+    .hero {
+      max-width: 700px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    h1 {
+      font-size: clamp(2.4rem, 4.6vw, 4.1rem);
+      line-height: 1.08;
+      font-weight: 400;
+      letter-spacing: 0.12rem;
+      color: #121212;
+      text-shadow: 0 0 26px rgba(0, 0, 0, 0.08);
+    }
+
+    .visual-container {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.85;
+      mix-blend-mode: multiply;
+      filter: drop-shadow(0 0 30px rgba(0, 0, 0, 0.08));
+    }
+
+    #torus-canvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    #torus-canvas canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    footer {
+      position: absolute;
+      bottom: 24px;
+      left: 32px;
+      right: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      color: var(--text-secondary);
+      z-index: 3;
+      animation: fadeUp 0.9s ease forwards;
+      animation-delay: 0.25s;
+      opacity: 0;
+      transform: translateY(12px);
+    }
+
+    .footer-left {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      max-width: 420px;
+      font-size: 0.75rem;
+      line-height: 1.5;
+      color: #656565;
+    }
+
+    .footer-line {
+      width: 70px;
+      height: 1px;
+      background: rgba(0, 0, 0, 0.2);
+      margin-top: 8px;
+      flex: 0 0 auto;
+    }
+
+    .footer-subtitle {
+      color: #717171;
+    }
+
+    .twitter-link {
+      position: absolute;
+      right: 30px;
+      bottom: 24px;
+      width: 36px;
+      height: 36px;
+      border-radius: 999px;
+      border: 1px solid rgba(0, 0, 0, 0.2);
+      background: rgba(255, 255, 255, 0.45);
+      color: #2f2f2f;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 3;
+      text-decoration: none;
+      transition: background 0.2s ease, transform 0.2s ease;
+    }
+
+    .twitter-link:hover {
+      background: rgba(255, 255, 255, 0.7);
+      transform: translateY(-1px);
+    }
+
+    .twitter-link svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    @keyframes fadeUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 900px) {
+      .app-frame {
+        height: min(92vh, 860px);
+        padding: 22px 24px;
+      }
+
+      nav {
+        gap: 12px;
+        letter-spacing: 0.08rem;
+      }
+
+      footer {
+        left: 24px;
+        right: 24px;
+      }
+
+      .twitter-link {
+        right: 24px;
+        bottom: 120px;
+      }
+    }
+
+    @media (max-width: 700px) {
+      body {
+        padding: 16px;
+      }
+
+      header {
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      main {
+        padding-bottom: 140px;
+      }
+
+      nav {
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      h1 {
+        letter-spacing: 0.08rem;
+      }
+
+      .twitter-link {
+        bottom: 150px;
+      }
+    }
+  </style>
 </head>
 <body>
-    <div class="overlay">
-        <div>PRESENT DAY</div>
-        <div class="time">PRESENT TIME</div>
+  <div class="app-frame">
+    <div class="visual-container" aria-hidden="true">
+      <div id="torus-canvas"></div>
     </div>
-    <div class="instructions">
-        [DRAG] ROTATE VIEW | [CLICK] CONNECT
-    </div>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script>
-        // Scene setup
-        const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(0x000000, 0.01);
-        
-        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 200);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        document.body.appendChild(renderer.domElement);
-        renderer.domElement.id = 'canvas';
-        
-        // Fixed camera distance
-        const cameraDistance = 50;
-        camera.position.set(0, 0, cameraDistance);
-        
-        // Add minimal ambient light so we can see the monitor casings
-        const ambientLight = new THREE.AmbientLight(0x0a0a0a, 0.1);
-        scene.add(ambientLight);
-        
-        // Mouse controls
-        let mouseX = 0, mouseY = 0;
-        let targetRotationX = 0, targetRotationY = 0;
-        let isMouseDown = false;
-        
-        document.addEventListener('mousemove', (e) => {
-            if (isMouseDown) {
-                targetRotationY = ((e.clientX / window.innerWidth) - 0.5) * Math.PI;
-                targetRotationX = ((e.clientY / window.innerHeight) - 0.5) * Math.PI * 0.5;
-            }
-        });
-        
-        document.addEventListener('mousedown', () => isMouseDown = true);
-        document.addEventListener('mouseup', () => isMouseDown = false);
-        
-        // CRT Monitor class
-        class CRTMonitor {
-            constructor(size = 1) {
-                this.group = new THREE.Group();
-                this.size = size;
-                this.isOn = Math.random() > 0.2;
-                this.flickerSpeed = Math.random() * 0.1 + 0.01;
-                this.contentType = Math.floor(Math.random() * 5);
-                
-                // Monitor casing
-                const casingGeometry = new THREE.BoxGeometry(size * 4, size * 3, size * 2);
-                const casingMaterial = new THREE.MeshPhongMaterial({
-                    color: 0x1a1a1a,
-                    emissive: 0x0a0a0a,
-                    shininess: 20
-                });
-                this.casing = new THREE.Mesh(casingGeometry, casingMaterial);
-                
-                // Screen (curved)
-                const screenGeometry = new THREE.SphereGeometry(size * 3, 16, 12, 0, Math.PI, 0, Math.PI * 0.6);
-                const screenMaterial = new THREE.MeshBasicMaterial({
-                    color: 0x000000,
-                    emissive: 0x4A8FBD,
-                    emissiveIntensity: this.isOn ? 0.5 : 0,
-                    side: THREE.DoubleSide
-                });
-                this.screen = new THREE.Mesh(screenGeometry, screenMaterial);
-                this.screen.rotation.x = -Math.PI / 2;
-                this.screen.position.z = size * 0.8;
-                
-                // Screen content canvas
-                this.canvas = document.createElement('canvas');
-                this.canvas.width = 512;
-                this.canvas.height = 384;
-                this.ctx = this.canvas.getContext('2d');
-                this.texture = new THREE.CanvasTexture(this.canvas);
-                
-                // Content plane
-                const contentGeometry = new THREE.PlaneGeometry(size * 3.5, size * 2.6);
-                const contentMaterial = new THREE.MeshBasicMaterial({
-                    map: this.texture,
-                    transparent: true,
-                    opacity: this.isOn ? 0.9 : 0,
-                    emissive: 0x4A8FBD,
-                    emissiveIntensity: 0.3
-                });
-                this.content = new THREE.Mesh(contentGeometry, contentMaterial);
-                this.content.position.z = size * 1.01;
-                
-                // Point light for glow
-                this.light = new THREE.PointLight(0x4A8FBD, this.isOn ? size * 0.5 : 0, size * 10);
-                this.light.position.z = size * 2;
-                
-                this.group.add(this.casing, this.screen, this.content, this.light);
-                
-                // Random position and rotation
-                this.group.position.set(
-                    (Math.random() - 0.5) * 80,
-                    (Math.random() - 0.5) * 60,
-                    (Math.random() - 0.5) * 80
-                );
-                this.group.rotation.set(
-                    (Math.random() - 0.5) * 0.5,
-                    (Math.random() - 0.5) * Math.PI,
-                    (Math.random() - 0.5) * 0.3
-                );
-                
-                // Animation properties
-                this.floatSpeed = Math.random() * 0.001 + 0.0005;
-                this.floatOffset = Math.random() * Math.PI * 2;
-                this.rotationSpeed = (Math.random() - 0.5) * 0.001;
-                
-                this.updateContent();
-            }
-            
-            updateContent() {
-                if (!this.isOn) {
-                    this.ctx.fillStyle = '#000';
-                    this.ctx.fillRect(0, 0, 512, 384);
-                    this.texture.needsUpdate = true;
-                    return;
-                }
-                
-                // Clear with scanlines
-                this.ctx.fillStyle = '#0a0a0a';
-                this.ctx.fillRect(0, 0, 512, 384);
-                
-                // Scanline effect
-                for (let y = 0; y < 384; y += 2) {
-                    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-                    this.ctx.fillRect(0, y, 512, 1);
-                }
-                
-                switch(this.contentType) {
-                    case 0: // Static
-                        const imageData = this.ctx.createImageData(512, 384);
-                        for (let i = 0; i < imageData.data.length; i += 4) {
-                            const brightness = Math.random() * 255;
-                            imageData.data[i] = brightness * 0.3;
-                            imageData.data[i + 1] = brightness * 0.5;
-                            imageData.data[i + 2] = brightness;
-                            imageData.data[i + 3] = 255;
-                        }
-                        this.ctx.putImageData(imageData, 0, 0);
-                        break;
-                        
-                    case 1: // Eye
-                        this.ctx.fillStyle = '#EBE6E3';
-                        this.ctx.beginPath();
-                        this.ctx.ellipse(256, 192, 150, 80, 0, 0, Math.PI * 2);
-                        this.ctx.fill();
-                        
-                        this.ctx.fillStyle = '#4A8FBD';
-                        this.ctx.beginPath();
-                        this.ctx.arc(256 + Math.sin(Date.now() * 0.001) * 20, 192, 60, 0, Math.PI * 2);
-                        this.ctx.fill();
-                        
-                        this.ctx.fillStyle = '#0C0002';
-                        this.ctx.beginPath();
-                        this.ctx.arc(256 + Math.sin(Date.now() * 0.001) * 20, 192, 25, 0, Math.PI * 2);
-                        this.ctx.fill();
-                        break;
-                        
-                    case 2: // Protocol text
-                        this.ctx.fillStyle = '#02C2CC';
-                        this.ctx.font = '20px VT323';
-                        const protocols = [
-                            'PROTOCOL 7 ACTIVE',
-                            'LAYER:07 INITIALIZED',
-                            'WIRED CONNECTION ESTABLISHED',
-                            'CLOSE THE WORLD',
-                            'OPEN THE NEXT',
-                            'SYSTEM LINK START',
-                            'COPLAND OS ENTERPRISE',
-                            'PSYCHE CHIP DETECTED'
-                        ];
-                        let y = 30;
-                        for (let i = 0; i < 12; i++) {
-                            this.ctx.fillText(protocols[Math.floor(Math.random() * protocols.length)], 20, y);
-                            y += 30;
-                        }
-                        break;
-                        
-                    case 3: // Glitched p7
-                        this.ctx.fillStyle = '#8941AD';
-                        this.ctx.fillRect(100, 50, 312, 284);
-                        this.ctx.fillStyle = '#000';
-                        this.ctx.font = '150px VT323';
-                        this.ctx.fillText('p7', 180, 220);
-                        
-                        // Glitch effect
-                        for (let i = 0; i < 5; i++) {
-                            const slice = this.ctx.getImageData(
-                                0, 
-                                Math.random() * 384, 
-                                512, 
-                                Math.random() * 20 + 5
-                            );
-                            this.ctx.putImageData(slice, Math.random() * 20 - 10, Math.random() * 384);
-                        }
-                        break;
-                        
-                    case 4: // Binary rain
-                        this.ctx.fillStyle = '#02C2CC';
-                        this.ctx.font = '12px VT323';
-                        for (let x = 0; x < 512; x += 15) {
-                            for (let y = 0; y < 384; y += 15) {
-                                if (Math.random() > 0.7) {
-                                    this.ctx.fillText(Math.random() > 0.5 ? '1' : '0', x, y);
-                                }
-                            }
-                        }
-                        break;
-                }
-                
-                // CRT curve distortion overlay
-                const gradient = this.ctx.createRadialGradient(256, 192, 0, 256, 192, 300);
-                gradient.addColorStop(0, 'rgba(0,0,0,0)');
-                gradient.addColorStop(1, 'rgba(0,0,0,0.3)');
-                this.ctx.fillStyle = gradient;
-                this.ctx.fillRect(0, 0, 512, 384);
-                
-                this.texture.needsUpdate = true;
-            }
-            
-            update(time) {
-                // Floating animation
-                this.group.position.y += Math.sin(time * this.floatSpeed + this.floatOffset) * 0.01;
-                this.group.rotation.y += this.rotationSpeed;
-                
-                // Flicker effect
-                if (Math.random() < this.flickerSpeed) {
-                    this.togglePower();
-                }
-                
-                // Update content periodically
-                if (this.isOn && Math.random() < 0.02) {
-                    this.updateContent();
-                }
-            }
-            
-            togglePower() {
-                this.isOn = !this.isOn;
-                this.screen.material.emissiveIntensity = this.isOn ? 0.5 : 0;
-                this.content.material.opacity = this.isOn ? 0.9 : 0;
-                this.light.intensity = this.isOn ? this.size * 0.5 : 0;
-                
-                if (this.isOn) {
-                    this.contentType = Math.floor(Math.random() * 5);
-                    this.updateContent();
-                }
-            }
-        }
-        
-        // Create monitor array
-        const monitors = [];
-        for (let i = 0; i < 69; i++) {
-            const monitor = new CRTMonitor(Math.random() * 0.5 + 0.5);
-            monitors.push(monitor);
-            scene.add(monitor.group);
-        }
-        
-        // Add some floating cables
-        const cableGeometry = new THREE.TubeGeometry(
-            new THREE.CatmullRomCurve3([
-                new THREE.Vector3(-40, 20, 0),
-                new THREE.Vector3(-20, 10, 10),
-                new THREE.Vector3(0, 0, 0),
-                new THREE.Vector3(20, -10, -10),
-                new THREE.Vector3(40, -20, 0)
-            ]),
-            100, 0.1, 8, false
+
+    <header>
+      <div class="logo">
+        <img src="logo.png" alt="P7 Logo" class="logo-img" />
+      </div>
+      <nav aria-label="Primary">
+        <button type="button" class="btn">About Us</button>
+        <button type="button" class="btn btn-primary btn-compact">
+          <span class="dot"></span>
+          Thesis
+        </button>
+      </nav>
+    </header>
+
+    <main>
+      <div class="hero">
+        <h1>Infrastructure for the next internet</h1>
+      </div>
+    </main>
+
+    <footer>
+      <div class="footer-left">
+        <span class="footer-line" aria-hidden="true"></span>
+        <div class="footer-copy">
+          <p class="footer-subtitle">P7 is a thesis-driven fund investing in infrastructure for machines. We back the substrate where autonomous agents will transact, coordinate, and generate value.</p>
+        </div>
+      </div>
+    </footer>
+
+    <a href="https://x.com/p7xyz" target="_blank" rel="noopener noreferrer" class="twitter-link" aria-label="Follow us on X">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+    </a>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    const container = document.getElementById("torus-canvas");
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 120);
+    camera.position.set(0, 0, 7);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x000000, 0);
+    container.appendChild(renderer.domElement);
+
+    const spriteCanvas = document.createElement("canvas");
+    spriteCanvas.width = 8;
+    spriteCanvas.height = 8;
+    const spriteCtx = spriteCanvas.getContext("2d");
+    spriteCtx.fillStyle = "#000000";
+    spriteCtx.fillRect(3, 3, 2, 2);
+    const sprite = new THREE.CanvasTexture(spriteCanvas);
+    sprite.minFilter = THREE.NearestFilter;
+    sprite.magFilter = THREE.NearestFilter;
+
+    const makeRing = (radius, tube, segments, tubular, color, size, opacity, jitter) => {
+      const geometry = new THREE.TorusGeometry(radius, tube, segments, tubular);
+      const positions = geometry.attributes.position;
+      for (let i = 0; i < positions.count; i++) {
+        const offset = (Math.random() - 0.5) * jitter;
+        positions.setXYZ(
+          i,
+          positions.getX(i) + offset,
+          positions.getY(i) + offset * 0.6,
+          positions.getZ(i) + offset
         );
-        const cableMaterial = new THREE.MeshBasicMaterial({ color: 0x1a1a1a });
-        
-        for (let i = 0; i < 5; i++) {
-            const cable = new THREE.Mesh(cableGeometry, cableMaterial);
-            cable.position.set(
-                (Math.random() - 0.5) * 60,
-                (Math.random() - 0.5) * 40,
-                (Math.random() - 0.5) * 40
-            );
-            cable.rotation.set(
-                Math.random() * Math.PI,
-                Math.random() * Math.PI,
-                Math.random() * Math.PI
-            );
-            scene.add(cable);
-        }
-        
-        // Click to connect
-        document.addEventListener('click', () => {
-            // Flash all monitors
-            monitors.forEach((monitor, i) => {
-                setTimeout(() => {
-                    monitor.togglePower();
-                    monitor.contentType = 2; // Show protocol text
-                    monitor.updateContent();
-                }, i * 50);
-            });
-            
-            // Restore after effect
-            setTimeout(() => {
-                monitors.forEach(monitor => {
-                    if (Math.random() > 0.3) {
-                        monitor.togglePower();
-                        monitor.contentType = Math.floor(Math.random() * 5);
-                        monitor.updateContent();
-                    }
-                });
-            }, 2000);
-        });
-        
-        // Animation loop
-        const clock = new THREE.Clock();
-        let cameraRotationX = 0, cameraRotationY = 0;
-        
-        function animate() {
-            requestAnimationFrame(animate);
-            
-            const time = clock.getElapsedTime();
-            
-            // Smooth camera rotation
-            cameraRotationX += (targetRotationX - cameraRotationX) * 0.05;
-            cameraRotationY += (targetRotationY - cameraRotationY) * 0.05;
-            
-            // Keep camera at fixed distance while orbiting
-            camera.position.x = Math.sin(cameraRotationY) * cameraDistance;
-            camera.position.y = Math.sin(cameraRotationX) * 10;
-            camera.position.z = Math.cos(cameraRotationY) * cameraDistance;
-            camera.lookAt(0, 0, 0);
-            
-            // Update monitors
-            monitors.forEach(monitor => monitor.update(time));
-            
-            renderer.render(scene, camera);
-        }
-        
-        // Handle resize
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-        
-        animate();
-    </script>
+      }
+      positions.needsUpdate = true;
+      const material = new THREE.PointsMaterial({
+        color,
+        size,
+        map: sprite,
+        transparent: true,
+        opacity,
+        alphaTest: 0.5,
+        depthWrite: false,
+        sizeAttenuation: true
+      });
+      return new THREE.Points(geometry, material);
+    };
+
+    const torusGroup = new THREE.Group();
+    const outer = makeRing(1.9, 0.6, 28, 240, 0x000000, 0.055, 0.85, 0.05);
+    const mid = makeRing(1.6, 0.45, 24, 220, 0x252525, 0.048, 0.65, 0.05);
+    const inner = makeRing(1.35, 0.3, 20, 200, 0x5f5f5f, 0.042, 0.45, 0.04);
+
+    mid.rotation.x = Math.PI * 0.2;
+    inner.rotation.y = Math.PI * 0.3;
+
+    torusGroup.add(outer, mid, inner);
+    torusGroup.rotation.set(-0.6, 0.6, 0.2);
+    torusGroup.position.set(1.1, -0.3, 0);
+    torusGroup.scale.set(2.4, 2.4, 2.4);
+    scene.add(torusGroup);
+
+    const starCount = 450;
+    const starGeometry = new THREE.BufferGeometry();
+    const starPositions = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount; i++) {
+      const i3 = i * 3;
+      starPositions[i3] = (Math.random() - 0.5) * 14;
+      starPositions[i3 + 1] = (Math.random() - 0.5) * 10;
+      starPositions[i3 + 2] = (Math.random() - 0.5) * 14;
+    }
+    starGeometry.setAttribute("position", new THREE.BufferAttribute(starPositions, 3));
+    const starMaterial = new THREE.PointsMaterial({
+      color: 0xa9a9a9,
+      size: 0.015,
+      transparent: true,
+      opacity: 0.35,
+      depthWrite: false
+    });
+    const stars = new THREE.Points(starGeometry, starMaterial);
+    scene.add(stars);
+
+    const resizeRenderer = () => {
+      const { width, height } = container.getBoundingClientRect();
+      if (width === 0 || height === 0) return;
+      renderer.setSize(width, height, false);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    };
+
+    const resizeObserver = new ResizeObserver(resizeRenderer);
+    resizeObserver.observe(container);
+    resizeRenderer();
+
+    const clock = new THREE.Clock();
+    const animate = () => {
+      const time = clock.getElapsedTime();
+      torusGroup.rotation.y = 0.6 + time * 0.08;
+      torusGroup.rotation.x = -0.6 + Math.sin(time * 0.2) * 0.06;
+      torusGroup.rotation.z = 0.2 + time * 0.04;
+      stars.rotation.y = time * 0.01;
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    };
+
+    animate();
+  </script>
 </body>
 </html>
