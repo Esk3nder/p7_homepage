@@ -411,7 +411,7 @@
     new ResizeObserver(resize).observe(el); resize();
 
     const clk = new THREE.Clock();
-    (function anim() { const t = clk.getElapsedTime(); tg.rotation.y = 0.6 + t * 0.02; tg.rotation.x = -0.6 + Math.sin(t * 0.08) * 0.03; tg.rotation.z = 0.2 + t * 0.01; rings[0].rotation.z = t * 0.3; rings[1].rotation.z = t * 0.25; rings[2].rotation.z = t * 0.2; stars.rotation.y = t * 0.003; r.render(scene, cam); requestAnimationFrame(anim); })();
+    (function anim() { const t = clk.getElapsedTime(); tg.rotation.y = 0.6 + t * 0.02; tg.rotation.x = -0.6 + Math.sin(t * 0.08) * 0.03; tg.rotation.z = 0.2 + t * 0.01; rings[0].rotation.z = t * 0.24; rings[1].rotation.z = t * 0.25; rings[2].rotation.z = t * 0.2; stars.rotation.y = t * 0.003; r.render(scene, cam); requestAnimationFrame(anim); })();
   </script>
 </body>
 </html>
