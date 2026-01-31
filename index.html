@@ -122,13 +122,15 @@
       letter-spacing: 0.12rem;
     }
 
-    nav button {
-      color: var(--text-secondary);
-      transition: color 0.2s ease;
+    nav .btn:not(.btn-primary) {
+      text-decoration: underline;
+      text-decoration-color: transparent;
+      text-underline-offset: 4px;
+      transition: color 0.2s ease, text-decoration-color 0.2s ease;
     }
 
-    nav button:hover {
-      color: var(--text-primary);
+    nav .btn:not(.btn-primary):hover {
+      text-decoration-color: currentColor;
     }
 
     .btn {
@@ -208,6 +210,7 @@
       letter-spacing: 0.12rem;
       color: #121212;
       text-shadow: 0 0 26px rgba(0, 0, 0, 0.08);
+      text-align: center;
     }
 
     .visual-container {
@@ -383,7 +386,7 @@
 
     <main>
       <div class="hero">
-        <h1>Infrastructure for the next internet</h1>
+        <h1>Infrastructure<br>for the next<br>internet</h1>
       </div>
     </main>
 
